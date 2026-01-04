@@ -2,18 +2,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
-import {
-  Database,
-  Plus,
-  RefreshCw,
-  LogOut,
-  Table,
-  Edit,
-  Check,
-  X,
-  Server
-} from 'lucide-react';
+import { Database, Plus, LogOut, Settings, Layers } from 'lucide-react';
 import api from '../services/api';
+import DatabaseForm from '../components/admin/DatabaseForm';
+import DatabaseList from '../components/admin/DatabaseList';
+import TableList from '../components/admin/TableList';
+import TableSchema from '../components/admin/TableSchema';
+import {
+  ERROR_MESSAGES,
+  SUCCESS_MESSAGES,
+} from '../config/constants';
 
 export default function AdminDashboard() {
   const [databases, setDatabases] = useState([]);
@@ -24,17 +22,7 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [showAddDatabase, setShowAddDatabase] = useState(false);
   const [isIndexing, setIsIndexing] = useState(false);
-  const [editingColumn, setEditingColumn] = useState(null);
-  const [editingTable, setEditingTable] = useState(false);
-
-  const [newDatabase, setNewDatabase] = useState({
-    databaseName: '',
-    host: '',
-    port: 5432,
-    username: '',
-    password: '',
-    description: ''
-  });
+  const [isAddingDatabase, setIsAddingDatabase] = useState(false);
 
   const navigate = useNavigate();
   const { logout } = useAuthStore();
@@ -60,7 +48,8 @@ export default function AdminDashboard() {
       const response = await api.get('/database-configs');
       setDatabases(response.data.data);
     } catch (error) {
-      toast.error('Failed to fetch databases');
+      const message = error.response?.data?.error || ERROR_MESSAGES.API.FETCH_DATABASES;
+      toast.error(message);
     }
   };
 
@@ -70,7 +59,8 @@ export default function AdminDashboard() {
       const response = await api.get(`/database-configs/${selectedDatabase.id}/tables`);
       setTables(response.data.data);
     } catch (error) {
-      toast.error('Failed to fetch tables');
+      const message = error.response?.data?.error || ERROR_MESSAGES.API.FETCH_TABLES;
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -84,34 +74,26 @@ export default function AdminDashboard() {
       );
       setTableSchema(response.data.data);
     } catch (error) {
-      toast.error('Failed to fetch table schema');
+      const message = error.response?.data?.error || ERROR_MESSAGES.API.FETCH_SCHEMA;
+      toast.error(message);
       setTableSchema(null);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAddDatabase = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-
+  const handleAddDatabase = async (formData) => {
+    setIsAddingDatabase(true);
     try {
-      await api.post('/database-configs', newDatabase);
-      toast.success('Database added successfully!');
+      await api.post('/database-configs', formData);
+      toast.success(SUCCESS_MESSAGES.DATABASE_ADDED);
       setShowAddDatabase(false);
-      setNewDatabase({
-        databaseName: '',
-        host: '',
-        port: 5432,
-        username: '',
-        password: '',
-        description: ''
-      });
       fetchDatabases();
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to add database');
+      const message = error.response?.data?.error || ERROR_MESSAGES.API.ADD_DATABASE;
+      toast.error(message);
     } finally {
-      setIsLoading(false);
+      setIsAddingDatabase(false);
     }
   };
 
@@ -124,7 +106,8 @@ export default function AdminDashboard() {
       toast.success(response.data.message);
       fetchTables();
     } catch (error) {
-      toast.error('Failed to index database');
+      const message = error.response?.data?.error || ERROR_MESSAGES.API.INDEX_DATABASE;
+      toast.error(message);
     } finally {
       setIsIndexing(false);
     }
@@ -135,13 +118,13 @@ export default function AdminDashboard() {
 
     try {
       await api.put(`/database-configs/tables/${tableSchema.id}/description`, {
-        description
+        description,
       });
-      toast.success('Table description updated');
-      setEditingTable(false);
+      toast.success(SUCCESS_MESSAGES.DESCRIPTION_UPDATED);
       fetchTableSchema();
     } catch (error) {
-      toast.error('Failed to update table description');
+      const message = error.response?.data?.error || ERROR_MESSAGES.API.UPDATE_DESCRIPTION;
+      toast.error(message);
     }
   };
 
@@ -153,12 +136,18 @@ export default function AdminDashboard() {
         `/database-configs/tables/${tableSchema.id}/columns/${columnName}/description`,
         { description }
       );
-      toast.success('Column description updated');
-      setEditingColumn(null);
+      toast.success(SUCCESS_MESSAGES.DESCRIPTION_UPDATED);
       fetchTableSchema();
     } catch (error) {
-      toast.error('Failed to update column description');
+      const message = error.response?.data?.error || ERROR_MESSAGES.API.UPDATE_DESCRIPTION;
+      toast.error(message);
     }
+  };
+
+  const handleSelectDatabase = (db) => {
+    setSelectedDatabase(db);
+    setSelectedTable(null);
+    setTableSchema(null);
   };
 
   const handleLogout = () => {
@@ -167,390 +156,123 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-4xl font-bold gradient-text mb-2">Admin Dashboard</h1>
-            <p className="text-secondary-600">Manage organization databases and tables</p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="btn-secondary flex items-center gap-2"
-          >
-            <LogOut className="w-5 h-5" />
-            Logout
-          </button>
-        </div>
+    <div className="page-container relative">
+      {/* Background decoration */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="blob-gradient blob-primary w-[600px] h-[600px] -top-64 -left-64 opacity-20" />
+        <div className="blob-gradient blob-accent w-[500px] h-[500px] bottom-0 -right-64 animation-delay-2000 opacity-15" />
+        <div className="blob-gradient blob-sky w-[400px] h-[400px] top-1/2 left-1/4 animation-delay-1000 opacity-20" />
+      </div>
 
-        {/* Add Database Button */}
-        <div className="mb-6">
-          <button
-            onClick={() => setShowAddDatabase(!showAddDatabase)}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Add Database
-          </button>
-        </div>
+      <div className="page-content">
+        {/* Header */}
+        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
+          <div className="animate-fade-in">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-primary-100 to-primary-200 rounded-xl flex items-center justify-center shadow-soft">
+                <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-primary-600" />
+              </div>
+              <div>
+                <h1 className="page-title text-xl sm:text-2xl lg:text-3xl">Admin Dashboard</h1>
+                <p className="page-subtitle text-xs sm:text-sm">Manage databases and tables</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => setShowAddDatabase(!showAddDatabase)}
+              className={`btn-primary btn-sm ${showAddDatabase ? 'from-primary-600 to-primary-700' : ''}`}
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Add Database</span>
+              <span className="sm:hidden">Add</span>
+            </button>
+            <button onClick={handleLogout} className="btn-secondary btn-sm">
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
+        </header>
 
         {/* Add Database Form */}
         {showAddDatabase && (
-          <div className="card mb-6">
-            <div className="card-header">
-              <h2 className="text-lg font-semibold text-secondary-800 flex items-center gap-2">
-                <Server className="w-5 h-5 text-primary-600" />
-                Add New Database
-              </h2>
-            </div>
-            <form onSubmit={handleAddDatabase} className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-secondary-700 mb-2">
-                    Database Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newDatabase.databaseName}
-                    onChange={(e) => setNewDatabase({...newDatabase, databaseName: e.target.value})}
-                    className="input-field"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-secondary-700 mb-2">
-                    Host
-                  </label>
-                  <input
-                    type="text"
-                    value={newDatabase.host}
-                    onChange={(e) => setNewDatabase({...newDatabase, host: e.target.value})}
-                    className="input-field"
-                    placeholder="localhost or IP address"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-secondary-700 mb-2">
-                    Port
-                  </label>
-                  <input
-                    type="number"
-                    value={newDatabase.port}
-                    onChange={(e) => setNewDatabase({...newDatabase, port: parseInt(e.target.value)})}
-                    className="input-field"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-secondary-700 mb-2">
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    value={newDatabase.username}
-                    onChange={(e) => setNewDatabase({...newDatabase, username: e.target.value})}
-                    className="input-field"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-secondary-700 mb-2">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    value={newDatabase.password}
-                    onChange={(e) => setNewDatabase({...newDatabase, password: e.target.value})}
-                    className="input-field"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-secondary-700 mb-2">
-                    Description
-                  </label>
-                  <input
-                    type="text"
-                    value={newDatabase.description}
-                    onChange={(e) => setNewDatabase({...newDatabase, description: e.target.value})}
-                    className="input-field"
-                    placeholder="Optional"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="btn-primary disabled:opacity-50"
-                >
-                  {isLoading ? 'Adding...' : 'Add Database'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddDatabase(false)}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+          <div className="animate-fade-in-up mb-6">
+            <DatabaseForm
+              onSubmit={handleAddDatabase}
+              onCancel={() => setShowAddDatabase(false)}
+              isLoading={isAddingDatabase}
+            />
           </div>
         )}
 
-        {/* Databases List */}
-        <div className="card mb-6">
-          <div className="card-header">
-            <h2 className="text-lg font-semibold text-secondary-800 flex items-center gap-2">
-              <Database className="w-5 h-5 text-primary-600" />
-              Your Databases
-            </h2>
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Databases Sidebar */}
+          <div className="lg:col-span-4 xl:col-span-3">
+            <div className="card animate-fade-in-up animation-delay-100">
+              <div className="card-header">
+                <h2 className="section-title">
+                  <Database className="section-title-icon" />
+                  Databases
+                </h2>
+              </div>
+              <div className="card-body">
+                <DatabaseList
+                  databases={databases}
+                  selectedDatabase={selectedDatabase}
+                  onSelect={handleSelectDatabase}
+                />
+              </div>
+            </div>
           </div>
-          <div className="p-6">
-            {databases.length === 0 ? (
-              <p className="text-secondary-500 text-center py-8">
-                No databases configured. Add your first database to get started.
-              </p>
+
+          {/* Tables and Schema */}
+          <div className="lg:col-span-8 xl:col-span-9 space-y-6">
+            {selectedDatabase ? (
+              <>
+                {/* Tables */}
+                <div className="animate-fade-in-up animation-delay-200">
+                  <TableList
+                    tables={tables}
+                    selectedTable={selectedTable}
+                    onSelect={setSelectedTable}
+                    isLoading={isLoading}
+                    isIndexing={isIndexing}
+                    onIndex={handleIndexDatabase}
+                    databaseName={selectedDatabase.database_name}
+                  />
+                </div>
+
+                {/* Table Schema */}
+                {tableSchema && (
+                  <div className="animate-fade-in-up animation-delay-300">
+                    <TableSchema
+                      schema={tableSchema}
+                      onUpdateTableDescription={handleUpdateTableDescription}
+                      onUpdateColumnDescription={handleUpdateColumnDescription}
+                    />
+                  </div>
+                )}
+              </>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {databases.map((db) => (
-                  <button
-                    key={db.id}
-                    onClick={() => {
-                      setSelectedDatabase(db);
-                      setSelectedTable(null);
-                      setTableSchema(null);
-                    }}
-                    className={`p-4 rounded-lg border-2 transition-all duration-200 text-left ${
-                      selectedDatabase?.id === db.id
-                        ? 'border-primary-500 bg-primary-50 shadow-md'
-                        : 'border-secondary-200 hover:border-primary-400 hover:shadow'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <Database className="w-6 h-6 text-primary-600" />
-                      {selectedDatabase?.id === db.id && (
-                        <Check className="w-5 h-5 text-primary-600" />
-                      )}
-                    </div>
-                    <h3 className="font-semibold text-secondary-800 mt-2">{db.database_name}</h3>
-                    <p className="text-sm text-secondary-500 mt-1">{db.host}:{db.port}</p>
-                    {db.description && (
-                      <p className="text-xs text-secondary-400 mt-2">{db.description}</p>
-                    )}
-                  </button>
-                ))}
+              <div className="card animate-fade-in-up animation-delay-200">
+                <div className="empty-state py-16 sm:py-20">
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary-100 to-accent-100 rounded-2xl flex items-center justify-center mb-6 shadow-soft-lg">
+                    <Layers className="w-10 h-10 sm:w-12 sm:h-12 text-primary-500" />
+                  </div>
+                  <h3 className="empty-state-title">Select a Database</h3>
+                  <p className="empty-state-description">
+                    Choose a database from the list to view and manage its tables.
+                    <br className="hidden sm:block" />
+                    You can add descriptions to help with natural language queries.
+                  </p>
+                </div>
               </div>
             )}
           </div>
         </div>
-
-        {/* Tables Section */}
-        {selectedDatabase && (
-          <div className="card mb-6">
-            <div className="card-header flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-secondary-800 flex items-center gap-2">
-                <Table className="w-5 h-5 text-primary-600" />
-                Tables in {selectedDatabase.database_name}
-              </h2>
-              <button
-                onClick={handleIndexDatabase}
-                disabled={isIndexing}
-                className="btn-primary text-sm flex items-center gap-2"
-              >
-                <RefreshCw className={`w-4 h-4 ${isIndexing ? 'animate-spin' : ''}`} />
-                {isIndexing ? 'Indexing...' : 'Get Tables'}
-              </button>
-            </div>
-            <div className="p-6">
-              {isLoading ? (
-                <div className="flex justify-center py-8">
-                  <RefreshCw className="w-8 h-8 animate-spin text-primary-600" />
-                </div>
-              ) : tables.length === 0 ? (
-                <p className="text-secondary-500 text-center py-8">
-                  Click "Get Tables" to fetch and index tables from this database
-                </p>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {tables.map((table) => (
-                    <button
-                      key={table}
-                      onClick={() => setSelectedTable(table)}
-                      className={`p-4 rounded-lg border-2 transition-all duration-200 text-left ${
-                        selectedTable === table
-                          ? 'border-primary-500 bg-primary-50 shadow-md'
-                          : 'border-secondary-200 hover:border-primary-400 hover:shadow'
-                      }`}
-                    >
-                      <Table className="w-5 h-5 text-primary-600 mb-2" />
-                      <div className="font-medium text-secondary-800 truncate text-sm">
-                        {table}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Table Schema */}
-        {tableSchema && (
-          <div className="card">
-            <div className="card-header flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-semibold text-secondary-800">
-                  {tableSchema.table_name}
-                </h2>
-                {!editingTable && tableSchema.table_description && (
-                  <p className="text-sm text-secondary-600 mt-1">{tableSchema.table_description}</p>
-                )}
-              </div>
-              <button
-                onClick={() => setEditingTable(!editingTable)}
-                className="btn-secondary text-sm flex items-center gap-2"
-              >
-                <Edit className="w-4 h-4" />
-                {editingTable ? 'Cancel' : 'Edit Description'}
-              </button>
-            </div>
-
-            {editingTable && (
-              <div className="px-6 pt-4">
-                <TableDescriptionEditor
-                  initialDescription={tableSchema.table_description || ''}
-                  onSave={handleUpdateTableDescription}
-                  onCancel={() => setEditingTable(false)}
-                />
-              </div>
-            )}
-
-            <div className="p-6">
-              <h3 className="font-semibold text-secondary-800 mb-4">Columns</h3>
-              <div className="table-container">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Column Name</th>
-                      <th>Data Type</th>
-                      <th>Nullable</th>
-                      <th>Description</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tableSchema.columns?.filter(col => col.column_name).map((column) => (
-                      <tr key={column.column_name}>
-                        <td className="font-medium">{column.column_name}</td>
-                        <td>{column.data_type}</td>
-                        <td>
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            column.is_nullable
-                              ? 'bg-accent-100 text-accent-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {column.is_nullable ? 'YES' : 'NO'}
-                          </span>
-                        </td>
-                        <td>
-                          {editingColumn === column.column_name ? (
-                            <ColumnDescriptionEditor
-                              initialDescription={column.column_description || ''}
-                              onSave={(desc) => handleUpdateColumnDescription(column.column_name, desc)}
-                              onCancel={() => setEditingColumn(null)}
-                            />
-                          ) : (
-                            <span className="text-secondary-600">
-                              {column.column_description || '-'}
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          <button
-                            onClick={() => setEditingColumn(
-                              editingColumn === column.column_name ? null : column.column_name
-                            )}
-                            className="text-primary-600 hover:text-primary-700"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
-    </div>
-  );
-}
-
-function TableDescriptionEditor({ initialDescription, onSave, onCancel }) {
-  const [description, setDescription] = useState(initialDescription);
-
-  return (
-    <div className="flex gap-2 mb-4">
-      <input
-        type="text"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        className="input-field flex-1"
-        placeholder="Enter table description..."
-        autoFocus
-      />
-      <button
-        onClick={() => onSave(description)}
-        className="btn-primary px-3"
-      >
-        <Check className="w-4 h-4" />
-      </button>
-      <button
-        onClick={onCancel}
-        className="btn-secondary px-3"
-      >
-        <X className="w-4 h-4" />
-      </button>
-    </div>
-  );
-}
-
-function ColumnDescriptionEditor({ initialDescription, onSave, onCancel }) {
-  const [description, setDescription] = useState(initialDescription);
-
-  return (
-    <div className="flex gap-2">
-      <input
-        type="text"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        className="input-field text-sm py-1 px-2"
-        placeholder="Enter description..."
-        autoFocus
-      />
-      <button
-        onClick={() => onSave(description)}
-        className="text-accent-600 hover:text-accent-700"
-      >
-        <Check className="w-4 h-4" />
-      </button>
-      <button
-        onClick={onCancel}
-        className="text-red-600 hover:text-red-700"
-      >
-        <X className="w-4 h-4" />
-      </button>
     </div>
   );
 }

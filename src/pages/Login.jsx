@@ -2,13 +2,16 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
-import { Database, Sparkles, Lock, Mail } from 'lucide-react';
+import { Database, Sparkles, Lock, Mail, ArrowRight } from 'lucide-react';
+import { validateLoginForm, getFirstError } from '../utils/validation';
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../config/constants';
 
 export default function Login() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
+  const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
@@ -16,134 +19,168 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const validation = validateLoginForm(formData);
+    if (!validation.isValid) {
+      setErrors(validation.errors);
+      toast.error(getFirstError(validation.errors));
+      return;
+    }
+
+    setErrors({});
     setIsLoading(true);
 
     try {
       const result = await login(formData.email, formData.password);
 
       if (result.success) {
-        toast.success('Welcome back!');
+        toast.success(SUCCESS_MESSAGES.LOGIN);
         navigate(result.user.userType === 'admin' ? '/admin' : '/dashboard');
       } else {
-        toast.error(result.error);
+        toast.error(result.error || ERROR_MESSAGES.API.LOGIN);
       }
     } catch (error) {
-      toast.error('An unexpected error occurred');
+      toast.error(ERROR_MESSAGES.GENERIC);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: null });
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative">
+    <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
+      {/* Animated background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse"></div>
-        <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{ animationDelay: '2s' }}></div>
+        <div className="blob-gradient blob-primary w-[500px] h-[500px] -top-48 -left-48 opacity-40" />
+        <div className="blob-gradient blob-accent w-[400px] h-[400px] top-1/4 -right-32 animation-delay-2000 opacity-30" />
+        <div className="blob-gradient blob-sky w-[350px] h-[350px] bottom-0 left-1/4 animation-delay-1000 opacity-35" />
+        <div className="blob-gradient blob-rose w-[300px] h-[300px] -bottom-24 right-1/4 animation-delay-500 opacity-25" />
       </div>
 
-      <div className="card w-full max-w-md relative z-10">
-        <div className="card-header text-center">
-          <div className="flex items-center justify-center mb-4">
-            <div className="relative p-3 bg-primary-100 rounded-2xl">
-              <Database className="w-10 h-10 text-primary-600" />
-              <Sparkles className="w-5 h-5 text-primary-600 absolute -top-1 -right-1" />
+      {/* Decorative grid pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(139,92,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,0.03)_1px,transparent_1px)] bg-[size:60px_60px] pointer-events-none" />
+
+      {/* Main card */}
+      <div className="card w-full max-w-md relative z-10 animate-fade-in-up">
+        {/* Card header with logo */}
+        <div className="px-6 pt-8 pb-6 sm:px-8 sm:pt-10 sm:pb-8 text-center">
+          <div className="flex items-center justify-center mb-6">
+            <div className="relative">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-primary-100 to-primary-200 rounded-2xl flex items-center justify-center shadow-soft-lg">
+                <Database className="w-8 h-8 sm:w-10 sm:h-10 text-primary-600" />
+              </div>
+              <div className="absolute -top-1 -right-1 w-6 h-6 sm:w-7 sm:h-7 bg-gradient-to-br from-accent-400 to-accent-500 rounded-lg flex items-center justify-center shadow-soft animate-bounce-soft">
+                <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+              </div>
             </div>
           </div>
-          <h1 className="text-3xl font-bold gradient-text mb-1">NL to SQL</h1>
-          <p className="text-secondary-600 text-sm">AI-Powered Database Assistant</p>
+
+          <h1 className="text-2xl sm:text-3xl font-bold gradient-text mb-2">NL to SQL</h1>
+          <p className="text-secondary-500 text-sm sm:text-base">
+            Transform natural language into powerful queries
+          </p>
         </div>
 
-        <div className="p-8">
-          <div className="mb-6 text-center">
-            <h2 className="text-xl font-semibold text-secondary-800 mb-1">Sign In</h2>
-            <p className="text-sm text-secondary-500">Enter your credentials to continue</p>
+        {/* Form section */}
+        <div className="px-6 pb-8 sm:px-8 sm:pb-10">
+          <div className="mb-6 sm:mb-8">
+            <h2 className="text-lg sm:text-xl font-semibold text-secondary-800 text-center mb-1">
+              Welcome back
+            </h2>
+            <p className="text-sm text-secondary-500 text-center">
+              Sign in to continue to your dashboard
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-secondary-700 mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400 w-5 h-5" />
+            {/* Email field */}
+            <div className="space-y-2">
+              <label className="input-label">Email Address</label>
+              <div className="input-icon-wrapper">
+                <Mail className="input-icon" />
                 <input
                   type="email"
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  required
-                  className="input-field pl-11"
+                  className={`input-field input-with-icon ${errors.email ? 'input-field-error' : ''}`}
                   placeholder="you@example.com"
                   autoFocus
+                  autoComplete="email"
                 />
               </div>
+              {errors.email && (
+                <p className="input-error">
+                  <span className="w-1 h-1 rounded-full bg-rose-500" />
+                  {errors.email}
+                </p>
+              )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-secondary-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400 w-5 h-5" />
+            {/* Password field */}
+            <div className="space-y-2">
+              <label className="input-label">Password</label>
+              <div className="input-icon-wrapper">
+                <Lock className="input-icon" />
                 <input
                   type="password"
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  required
-                  className="input-field pl-11"
-                  placeholder="••••••••"
-                  minLength="6"
+                  className={`input-field input-with-icon ${errors.password ? 'input-field-error' : ''}`}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
                 />
               </div>
+              {errors.password && (
+                <p className="input-error">
+                  <span className="w-1 h-1 rounded-full bg-rose-500" />
+                  {errors.password}
+                </p>
+              )}
             </div>
 
+            {/* Submit button */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed mt-6"
+              className="w-full btn-primary group mt-8"
             >
               {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Signing in...
+                <span className="flex items-center justify-center gap-2">
+                  <span className="loading-spinner w-5 h-5" />
+                  <span>Signing in...</span>
                 </span>
               ) : (
-                'Sign In'
+                <span className="flex items-center justify-center gap-2">
+                  <span>Sign In</span>
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </span>
               )}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-xs text-secondary-500">
-              Secure authentication powered by JWT
-            </p>
+          {/* Footer */}
+          <div className="mt-8 pt-6 border-t border-secondary-100">
+            <div className="flex items-center justify-center gap-2 text-xs text-secondary-400">
+              <Lock className="w-3.5 h-3.5" />
+              <span>Secured with JWT authentication</span>
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* Bottom decoration */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-xs text-secondary-400">
+        <span className="w-1.5 h-1.5 rounded-full bg-accent-400 animate-pulse" />
+        <span>AI-Powered Database Assistant</span>
       </div>
     </div>
   );
